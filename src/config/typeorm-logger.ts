@@ -3,13 +3,17 @@ import { Logger } from '@nestjs/common';
 
 export class CustomTypeOrmLogger implements TypeOrmLogger {
   private readonly logger = new Logger('TypeORM');
+  private readonly isProductionEnv: boolean;
   
-  constructor(private readonly isProduction: boolean = false) {}
+  constructor(private readonly isProduction: boolean = false) {
+    // Double check for production environment to ensure complete logging silence
+    this.isProductionEnv = isProduction || process.env.NODE_ENV === 'production';
+  }
 
   logQuery(query: string, parameters?: any[], queryRunner?: QueryRunner) {
-    // In production, NEVER log queries - completely silent
-    if (this.isProduction) {
-      return;
+    // ABSOLUTELY NO QUERY LOGGING IN PRODUCTION - PERIOD!
+    if (this.isProductionEnv) {
+      return; // Silent exit
     }
     
     // In development, only log if LOG_LEVEL is debug
@@ -22,10 +26,10 @@ export class CustomTypeOrmLogger implements TypeOrmLogger {
   }
 
   logQueryError(error: string | Error, query: string, parameters?: any[], queryRunner?: QueryRunner) {
-    // Always log errors, but limit query length in production
-    if (this.isProduction) {
-      this.logger.error(`Query failed: ${query.substring(0, 100)}...`);
-      this.logger.error(`Error: ${error}`);
+    // Even errors should be minimal in production
+    if (this.isProductionEnv) {
+      this.logger.error(`Database query error occurred`);
+      this.logger.error(`${error}`);
     } else {
       this.logger.error(`Query failed: ${query}`);
       this.logger.error(`Error: ${error}`);
@@ -37,9 +41,9 @@ export class CustomTypeOrmLogger implements TypeOrmLogger {
 
   logQuerySlow(time: number, query: string, parameters?: any[], queryRunner?: QueryRunner) {
     // Only log slow queries in production (very minimal)
-    if (this.isProduction && time > 2000) {
-      this.logger.warn(`Slow query detected (${time}ms)`);
-    } else if (!this.isProduction && time > 1000) {
+    if (this.isProductionEnv && time > 2000) {
+      this.logger.warn(`Slow database query detected (${time}ms)`);
+    } else if (!this.isProductionEnv && time > 1000) {
       this.logger.warn(`Slow query detected (${time}ms): ${query}`);
       if (parameters && parameters.length) {
         this.logger.warn(`Parameters: ${JSON.stringify(parameters)}`);

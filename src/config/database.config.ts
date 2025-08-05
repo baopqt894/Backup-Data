@@ -3,11 +3,8 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { CustomTypeOrmLogger } from './typeorm-logger';
 
 export function databaseConfig(configService: ConfigService, dbName: 'primary' | 'backup'): TypeOrmModuleOptions {
-  const isProduction = configService.get<string>('NODE_ENV') === 'production';
+  const isProduction = configService.get<string>('NODE_ENV') === 'production' || process.env.NODE_ENV === 'production';
   const logLevel = configService.get<string>('LOG_LEVEL', 'log');
-  
-  // Create custom logger instance
-  const customLogger = new CustomTypeOrmLogger(isProduction);
   
   if (dbName === 'primary') {
     return {
@@ -19,11 +16,17 @@ export function databaseConfig(configService: ConfigService, dbName: 'primary' |
       database: configService.get<string>('PRIMARY_DB_NAME'),
       autoLoadEntities: true,
       synchronize: false,
-      // In production: completely disable all logging
-      // In development: only enable if log level allows
+      // ABSOLUTELY NO LOGGING IN PRODUCTION
       logging: isProduction ? false : (logLevel === 'debug' ? ['query', 'error', 'warn'] : ['error', 'warn']),
-      logger: customLogger,
+      // NO CUSTOM LOGGER IN PRODUCTION to prevent any possible logging
+      logger: isProduction ? undefined : new CustomTypeOrmLogger(isProduction),
       maxQueryExecutionTime: isProduction ? 2000 : 1000,
+      // Additional production optimizations
+      extra: isProduction ? {
+        connectionLimit: 10,
+        acquireTimeout: 60000,
+        timeout: 60000,
+      } : {},
     };
   } else {
     return {
@@ -36,11 +39,17 @@ export function databaseConfig(configService: ConfigService, dbName: 'primary' |
       database: configService.get<string>('BACKUP_DB_NAME'),
       autoLoadEntities: true,
       synchronize: false,
-      // In production: completely disable all logging
-      // In development: only enable if log level allows
+      // ABSOLUTELY NO LOGGING IN PRODUCTION
       logging: isProduction ? false : (logLevel === 'debug' ? ['query', 'error', 'warn'] : ['error', 'warn']),
-      logger: customLogger,
+      // NO CUSTOM LOGGER IN PRODUCTION to prevent any possible logging  
+      logger: isProduction ? undefined : new CustomTypeOrmLogger(isProduction),
       maxQueryExecutionTime: isProduction ? 2000 : 1000,
+      // Additional production optimizations
+      extra: isProduction ? {
+        connectionLimit: 10,
+        acquireTimeout: 60000,
+        timeout: 60000,
+      } : {},
     };
   }
 }
