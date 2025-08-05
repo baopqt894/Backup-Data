@@ -552,11 +552,17 @@ export class CdcService implements OnModuleInit, OnModuleDestroy {
     // It is NOT robust and will fail on complex data types or statements.
     // For production, using wal2json is strongly recommended.
     const text = log.payload.toString();
-    console.log('Received raw data:', text);
+    
+    // Only log in development mode
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Received raw data:', text);
+    }
 
     const tableMatch = text.match(/table public\.(\w+): (\w+):/);
     if (!tableMatch) {
-        console.log('Could not parse table and operation from:', text);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Could not parse table and operation from:', text);
+        }
         return;
     }
 
@@ -572,7 +578,9 @@ export class CdcService implements OnModuleInit, OnModuleDestroy {
                 const values = Object.values(data);
                 const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
                 const sql = `INSERT INTO "${tableName}" (${columns}) VALUES (${placeholders})`;
-                console.log(`Executing INSERT: ${sql} with values:`, values);
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log(`Executing INSERT: ${sql} with values:`, values);
+                }
                 await queryRunner.query(sql, values);
             }
         } else if (operation.toUpperCase() === 'UPDATE') {
@@ -582,7 +590,9 @@ export class CdcService implements OnModuleInit, OnModuleDestroy {
                 const whereClauses = Object.keys(key).map((k, i) => `"${k}" = $${i + 1 + Object.keys(changes).length}`).join(' AND ');
                 const values = [...Object.values(changes), ...Object.values(key)];
                 const sql = `UPDATE "${tableName}" SET ${setClauses} WHERE ${whereClauses}`;
-                console.log(`Executing UPDATE: ${sql} with values:`, values);
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log(`Executing UPDATE: ${sql} with values:`, values);
+                }
                 await queryRunner.query(sql, values);
             }
         } else if (operation.toUpperCase() === 'DELETE') {
@@ -591,12 +601,14 @@ export class CdcService implements OnModuleInit, OnModuleDestroy {
                 const whereClauses = Object.keys(key).map((k, i) => `"${k}" = $${i + 1}`).join(' AND ');
                 const values = Object.values(key);
                 const sql = `DELETE FROM "${tableName}" WHERE ${whereClauses}`;
-                console.log(`Executing DELETE: ${sql} with values:`, values);
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log(`Executing DELETE: ${sql} with values:`, values);
+                }
                 await queryRunner.query(sql, values);
             }
         }
     } catch (error) {
-        console.error('Error processing CDC data:', error);
+        this.logger.error('Error processing CDC data:', error);
     } finally {
         await queryRunner.release();
     }
